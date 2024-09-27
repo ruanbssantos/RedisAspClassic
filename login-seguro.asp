@@ -1,24 +1,8 @@
 <!--#include file="_inc/function.asp"--> 
+<!--#include file="_inc/json.asp"--> 
 <%
-    ' Criptografar o session_id usando PowerShell
-    session_id = GenerateGUID()
-    str = EncryptWithAES(session_id,secretKey) 
-    Response.Write("<br/>session_id: " & session_id & "<br/><br/>")
-    Response.Write("<br/>session_id criptografada: " & str)
-    response.write( "<br><br><br><br>")
-    
-     
-
-    call SetBase64HttpOnlyCookie("sessionid", str, 60)
-    session_id_encrypted = GetBase64FromCookie("sessionid")
-
-    response.write("<br/><br/>Valor do coockie: " & session_id_encrypted  & "<br/>")
-
-    Response.Write("<br/>Descriptografia: " & DecryptWithAES(session_id_encrypted,secretKey)  & "<br/>")	
-    'Response.Write("<br/>session_id criptografado hexa para base64: " & EncodeStringBase64(str) & "<br/>")	
-
-
-    response.end
+    Response.LCID = 1046 ' REQUIRED! Set your LCID here (1046 = Brazilian). Could also be the LCID property of the page declaration or the Session.LCID property
+ 
     ' Verificar se o formulário foi enviado via POST
     If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
 
@@ -29,12 +13,24 @@
         email = Request.Form("email") ' Recebe o e-mail enviado pelo formulário
         telefone = Request.Form("telefone") ' Recebe o telefone enviado pelo formulário
 
-        ' Gerar um identificador de sessão seguro (sem caracteres especiais)
-        session_id = GenerateSessionID(32) ' Gera um token de 32 caracteres
- 
+        
+        ' instantiate the class
+        set JSON = New JSONobject
+
+        JSON.Add "cpf", cpf
+        JSON.Add "nome", nome
+        JSON.Add "email", email
+        JSON.Add "telefone", telefone
+
+        jsonString = JSON.Serialize()
+
+        ' Criptografar o session_id usando PowerShell
+        session_id = GenerateGUID()
+        'session_id = "E10F7301-3AE1-45C2-B87F-2B1145E27A2B" 
+        
         ' Criptografar o session_id usando PowerShell
         'Dim encryptedSessionID
-        encryptedSessionID = EncryptWithAES(session_id, secretKey) ' Chama o script PowerShell para criptografar
+        encryptedSessionID = EncryptWithAES(session_id,secretKey) ' Chama o script PowerShell para criptografar
         
         ' Verificar o valor criptografado para garantir que não está vazio
         Response.Write("<br/>session_id criptografado: " & encryptedSessionID & "<br/>")	
@@ -53,6 +49,10 @@
         call Redis.Hset(key, "email", email)
         call Redis.Hset(key, "telefone", telefone)    
         call Redis.Expire(key, 600) ' Define um tempo de expiração de 210 segundos
+    
+        ' Armazenar o session_id no Redis, associando-o ao CPF do usuário
+        call Redis.Set("session1:" & session_id, jsonString, 600) ' Cria uma associação session_id 
+        call Redis.Expire("session1:" & session_id, 600) ' Define um tempo de expiração de 210 segundos
 
         ' Armazenar o session_id no Redis, associando-o ao CPF do usuário
         call Redis.Set("session:" & session_id, cpf, 600) ' Cria uma associação session_id 
@@ -60,7 +60,8 @@
         
         ' Definir o cookie com o session_id criptografado via cabeçalho (somente HttpOnly)
         If Len(encryptedSessionID) > 0 Then
-            SetHttpOnlyCookie "sessionid", encryptedSessionID, 60 ' Armazena o session_id criptografado no cookie por 60 minutos
+
+            call SetBase64HttpOnlyCookie("sessionid", encryptedSessionID, 60) ' Armazena o session_id criptografado no cookie por 60 minutos 
         Else
             Response.Write("Erro: session_id criptografado está vazio!<br/>")
         End If

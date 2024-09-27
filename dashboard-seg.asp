@@ -1,6 +1,12 @@
 <!--#include file="_inc/function.asp"--> 
+<!--#include file="_inc/json.asp"--> 
 
 <% 
+    Response.LCID = 1046
+
+    ' instantiate the class
+    set sessionJson = New JSONobject
+
     ' Conectar ao Redis usando a biblioteca redis-com-client
     Set Redis = Server.CreateObject("RedisComClient")
     Redis.Open(vstrServer_redis)
@@ -15,18 +21,27 @@
         
         Response.Write("<br/>session_id Descriptografado: |" & session_id & "|<br/>")
         
-        If Len(session_id) > 0 Then
+        If Len(session_id) > 0 and redis.Exists("session:" & CleanString(session_id)) Then
+ 
             ' Recuperar o CPF associado ao session_id
-            cpf = Redis.Get("session:" & CleanString(session_id))	
+            cpf = Redis.Get("session:" & CleanString(session_id))
+            chaveHashe = "user:" & cpf
+
+            sessionJson.Parse(Redis.Get("session1:" & CleanString(session_id)))
+
             
-            Response.Write("<br/>session:" & session_id & "<br/>")
+
+            Response.Write("<br/>session: " & session_id & "<br/>")
+            Response.Write("<br/>CPF: " & cpf & "<br/>")
+            Response.Write("<br/>tempo:" & redis.TTL(chaveHashe) & "<br/>")
+            Response.Write("<br/>Campos em um hash:" & redis.Hlen(chaveHashe) & "<br/>")
+            Response.Write("<br/>Existe:" & redis.Exists(chaveHashe) & "<br/>")
             
-            If Not IsNull(cpf) And cpf <> "" Then
-                ' Recuperar os dados do usuário
-                Dim nome, email, telefone
-                nome = Redis.Hget("user:" & cpf, "nome")
-                email = Redis.Hget("user:" & cpf, "email")
-                telefone = Redis.Hget("user:" & cpf, "telefone")
+            If redis.Exists(chaveHashe) Then 
+ 
+                nome = Redis.Hget(chaveHashe, "nome")
+                email = Redis.Hget(chaveHashe, "email")
+                telefone = Redis.Hget(chaveHashe, "telefone")
             Else
                 Response.Write "<p>Sessão expirada ou inválida. Faça login novamente.</p>"
                 Response.End()
@@ -115,22 +130,16 @@
     <!-- Barra superior -->
     <div class="top-bar">
         <h1>Dashboard - Bem-vindo(a), <%=nome%>!</h1>
-    </div>
-
-    <!-- Menu lateral -->
-    <div class="side-menu">
-        <a href="#">Dashboard</a>
-        <a href="#">Perfil</a>
-        <a href="#">Configuracoes</a>
-        <a href="#">Sair</a>
-    </div>
-
+    </div> 
     <!-- Conteúdo principal -->
     <div class="content">
         <h2>Dados do Usuario</h2>
 
         <!-- Tabela de dados -->
         <table>
+            <tr>
+                <th colspan="100%">Valor unitario</th>
+            </tr>
             <tr>
                 <th>Nome</th>
                 <th>E-mail</th>
@@ -140,6 +149,19 @@
                 <td><%=nome%></td>
                 <td><%=email%></td>
                 <td><%=telefone%></td>
+            </tr>
+        </table>
+
+         <table>
+            <tr>
+                <tr>
+                    <th colspan="100%">Sessao em json</th>
+                </tr>
+            </tr>
+            <tr>
+                <td><%=sessionJson.value("nome")%></td>
+                <td><%=sessionJson.value("email")%></td>
+                <td><%=sessionJson.value("telefone")%></td>
             </tr>
         </table>
     </div>

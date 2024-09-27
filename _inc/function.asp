@@ -1,7 +1,7 @@
 <%
-    vstr_scriptPath = "C:\inetpub\wwwroot\Redis\_inc\scripts"    
+    vstr_scriptPath = "C:\inetpub\wwwroot\RedisAspClassic\_inc\scripts"    
     ' Definir a chave secreta usada para criptografar o session_id
-    secretKey = "chaveSegura123" ' Defina uma chave secreta (mínimo de 16 caracteres)
+    secretKey = "0A490C2A-33C7-4FD9-9E5F-31D3E6EC7F68" ' Defina uma chave secreta (mínimo de 16 caracteres)
     vstrServer_redis = "127.0.0.1:6379"
 
     Function GenerateGUID()
@@ -9,49 +9,67 @@
         Set objTypeLib = Server.CreateObject("Scriptlet.TypeLib")
         guid = objTypeLib.Guid
         ' Remove as chaves {} do GUID 
-        GenerateGUID = replace(replace(guid,"}",""),"{","")
+
+        'NÃO PODE SER MAIOR QUE 32 POIS DA ERRO NA DESCRIPTOGRAFIA
+        vstr = left(replace(replace(replace(guid,"}",""),"{",""),"-",""),32)
+        response.write len(vstr) & "<br />"
+        
+        GenerateGUID = vstr
         Set objTypeLib = Nothing
     End Function 
 
     ' Função para definir um cookie com HttpOnly via cabeçalhos
     Sub SetBase64HttpOnlyCookie(name, value, expiresInMinutes)
-        Dim safeBase64Value,cookieHeader, expires
-
+        Dim expires
+ 
         ' Definir a data de expiração do cookie no formato GMT
         expires = Now() + (expiresInMinutes / 1440) ' Converte minutos para dias
         expires = FormatDateTime(expires, vbLongDate) & " " & Time()
 
         ' Montar o cabeçalho do cookie com HttpOnly (sem Secure)
-        cookieHeader = name & "=" & server.URLEncode(safeBase64Value) & "; Expires=" & expires & "; Path=/; HttpOnly"
+        cookieHeader = name & "=" & Server.URLEncode(value) & "; Expires=" & expires & "; Path=/; HttpOnly"
         
         ' Enviar o cabeçalho do cookie
         Response.AddHeader "Set-Cookie", cookieHeader
     End Sub 
     
-    Function GetBase64FromCookie(name)
-        Dim safeBase64Value, base64Value
-        
+    Function GetBase64FromCookie(name) 
+
         ' Recuperar o valor do cookie
-        safeBase64Value = Request.Cookies(name)
-
-
-        response.write("<br /> Request coockie bruto: " & safeBase64Value)
-
-        ' Reverter os caracteres substituídos para o formato original Base64
-        base64Value = Replace(safeBase64Value, "-", "+")  ' Substitui - por +
-        base64Value = Replace(base64Value, "_", "/")  ' Substitui _ por /
+        vstr_value = Request.Cookies(name)
+        vstr_value = URLDecode(vstr_value)
 
         ' Adicionar os caracteres de preenchimento (=) novamente se necessário
         Dim paddingLength
-        paddingLength = Len(base64Value) Mod 4  ' Base64 deve ser múltiplo de 4
+        paddingLength = Len(vstr_value) Mod 4  ' Base64 deve ser múltiplo de 4
         If paddingLength > 0 Then
-            base64Value = base64Value & String(4 - paddingLength, "=")
+            vstr_value = vstr_value & String(4 - paddingLength, "=")
         End If
 
-        response.write("<br /> Request coockie tratado: " & base64Value)
-
-        GetBase64FromCookie = base64Value
+        GetBase64FromCookie = vstr_value
     End Function
+
+    Function URLDecode(ByVal str)
+        ' Substitui %xx pela letra correspondente (xx é o código hexadecimal)
+        Dim i, hexChar
+        URLDecode = str
+        i = InStr(URLDecode, "%")
+        
+        Do While i > 0
+            ' Extrai o valor hexadecimal
+            hexChar = Mid(URLDecode, i + 1, 2)
+            
+            ' Substitui a sequência %xx pelo caractere correspondente
+            URLDecode = Left(URLDecode, i - 1) & Chr("&H" & hexChar) & Mid(URLDecode, i + 3)
+            
+            ' Procura o próximo % na string
+            i = InStr(URLDecode, "%")
+        Loop
+        
+        ' Substitui os sinais de adição por espaços (já que + representa um espaço em URLs codificadas)
+        URLDecode = URLDecode
+    End Function
+
 
     ' Função para remover espaços em branco e quebras de linha extras
     Function CleanString(str)
@@ -194,20 +212,5 @@
         BinaryStream.CharSet = "us-ascii"
         Stream_BinaryToString = BinaryStream.ReadText
         Set BinaryStream = Nothing
-    End Function
-    
-    ' Função para gerar um ID de sessão aleatório
-    Function GenerateSessionID(length)
-        Dim chars, i, result
-        chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-        result = ""
-
-        Randomize ' Inicializa o gerador de números aleatórios
-
-        For i = 1 To length
-            result = result & Mid(chars, Int((Len(chars) * Rnd()) + 1), 1)
-        Next
-
-        GenerateSessionID = result
-    End Function
+    End Function 
 %>

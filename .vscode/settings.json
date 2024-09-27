@@ -1,0 +1,9 @@
+{
+    "files.autoGuessEncoding": false, 
+    "[asp]": {
+        "files.encoding": "iso88591"
+    }, 
+    "[ps1]": {
+        "files.encoding": "utf8"
+    }
+}
